@@ -439,7 +439,7 @@ export default {
             time: startDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
             price: this.selectedService.price
           })
-        }).catch(() => {})
+        }).catch(err => console.error('Email notification failed:', err))
 
       } catch (e) {
         if (e.message === 'SLOT_TAKEN') {

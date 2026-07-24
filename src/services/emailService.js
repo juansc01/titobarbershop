@@ -41,12 +41,16 @@ export const emailService = {
           service_id: EMAILJS_SERVICE_ID,
           template_id: EMAILJS_TEMPLATE_ID,
           user_id: EMAILJS_PUBLIC_KEY,
-          template_params: templateParams
+          template_params: templateParams,
+          accessToken: EMAILJS_PUBLIC_KEY
         })
       })
 
       if (!response.ok) {
-        console.error('Email send failed:', response.statusText)
+        const errorText = await response.text()
+        console.error('Email send failed:', response.status, errorText)
+      } else {
+        console.log('Email notification sent successfully')
       }
     } catch (error) {
       // Don't block the user flow if email fails

@@ -160,7 +160,7 @@ export default {
             time: new Date(apt.start_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
             price: apt.price
           })
-        }).catch(() => {})
+        }).catch(err => console.error('Email notification failed:', err))
       } catch (e) {
         useToast().error('Error al cancelar la cita')
       }
