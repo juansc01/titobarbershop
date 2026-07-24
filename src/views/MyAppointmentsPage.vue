@@ -83,6 +83,7 @@
 
 <script>
 import { supabase } from '../lib/supabase'
+import { emailService } from '../services/emailService'
 import { useToast } from '../composables/useToast'
 
 export default {
@@ -150,16 +151,14 @@ export default {
         useToast().success('Cita cancelada correctamente')
 
         // Send email notification (non-blocking)
-        import('../services/emailService.js').then(({ emailService }) => {
-          emailService.notifyCancelledAppointment({
-            customerName: apt.customers?.name || this.phone,
-            customerPhone: this.phone,
-            service: apt.services?.name || '-',
-            barber: apt.barbers?.name || '-',
-            date: new Date(apt.start_time).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
-            time: new Date(apt.start_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            price: apt.price
-          })
+        emailService.notifyCancelledAppointment({
+          customerName: apt.customers?.name || this.phone,
+          customerPhone: this.phone,
+          service: apt.services?.name || '-',
+          barber: apt.barbers?.name || '-',
+          date: new Date(apt.start_time).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+          time: new Date(apt.start_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          price: apt.price
         }).catch(err => console.error('Email notification failed:', err))
       } catch (e) {
         useToast().error('Error al cancelar la cita')

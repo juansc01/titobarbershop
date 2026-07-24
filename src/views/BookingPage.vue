@@ -245,6 +245,7 @@ import { barbersService } from '../services/barbersService'
 import { availabilityService } from '../services/availabilityService'
 import { appointmentsService } from '../services/appointmentsService'
 import { customersService } from '../services/customersService'
+import { emailService } from '../services/emailService'
 import { useToast } from '../composables/useToast'
 
 export default {
@@ -428,18 +429,18 @@ export default {
         useToast().success('¡Cita reservada con éxito!')
 
         // Send email notification (non-blocking)
-        import('../services/emailService.js').then(({ emailService }) => {
-          const startDate = new Date(this.selectedSlot.datetime)
-          emailService.notifyNewAppointment({
-            customerName: this.customer.name,
-            customerPhone: this.customer.phone,
-            service: this.selectedService.name,
-            barber: this.selectedBarber.name,
-            date: startDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
-            time: startDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            price: this.selectedService.price
-          })
-        }).catch(err => console.error('Email notification failed:', err))
+        const notificationData = {
+          customerName: this.customer.name,
+          customerPhone: this.customer.phone,
+          service: this.selectedService.name,
+          barber: this.selectedBarber.name,
+          date: startTime.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+          time: startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          price: this.selectedService.price
+        }
+        emailService.notifyNewAppointment(notificationData)
+          .then(() => console.log('Email notification sent'))
+          .catch(err => console.error('Email notification failed:', err))
 
       } catch (e) {
         if (e.message === 'SLOT_TAKEN') {

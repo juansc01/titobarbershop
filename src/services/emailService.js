@@ -17,7 +17,11 @@ const ADMIN_EMAIL = 'nacho.titobarber@gmail.com'
 export const emailService = {
   async sendNotification({ type, customerName, customerPhone, service, barber, date, time, price }) {
     if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-      console.warn('EmailJS not configured. Skipping email notification.')
+      console.warn('EmailJS not configured. Variables:', {
+        serviceId: EMAILJS_SERVICE_ID ? '✓' : '✗ MISSING',
+        templateId: EMAILJS_TEMPLATE_ID ? '✓' : '✗ MISSING',
+        publicKey: EMAILJS_PUBLIC_KEY ? '✓' : '✗ MISSING'
+      })
       return
     }
 
@@ -33,29 +37,27 @@ export const emailService = {
       price: price ? `${price}€` : '-'
     }
 
-    try {
-      const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          service_id: EMAILJS_SERVICE_ID,
-          template_id: EMAILJS_TEMPLATE_ID,
-          user_id: EMAILJS_PUBLIC_KEY,
-          template_params: templateParams,
-          accessToken: EMAILJS_PUBLIC_KEY
-        })
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Email send failed:', response.status, errorText)
-      } else {
-        console.log('Email notification sent successfully')
-      }
-    } catch (error) {
-      // Don't block the user flow if email fails
-      console.error('Email notification error:', error)
+    const payload = {
+      service_id: EMAILJS_SERVICE_ID,
+      template_id: EMAILJS_TEMPLATE_ID,
+      user_id: EMAILJS_PUBLIC_KEY,
+      template_params: templateParams
     }
+
+    console.log('Sending email notification...', { type, customerName, service })
+
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`EmailJS failed (${response.status}): ${errorText}`)
+    }
+
+    console.log('✓ Email notification sent successfully')
   },
 
   async notifyNewAppointment({ customerName, customerPhone, service, barber, date, time, price }) {
