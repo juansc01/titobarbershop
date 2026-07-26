@@ -191,7 +191,7 @@ export default {
 }
 
 .hero-logo {
-  width: 280px;
+  width: 400px;
   height: auto;
   object-fit: contain;
   margin-bottom: 32px;
