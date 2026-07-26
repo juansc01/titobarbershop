@@ -64,6 +64,22 @@ export const availabilityService = {
 
     // Helper to check if a slot conflicts
     const hasConflictAt = (start, end) => {
+      // Check break times
+      if (workingHours.break_start_time && workingHours.break_end_time) {
+        const [breakStartH, breakStartM] = workingHours.break_start_time.split(':').map(Number)
+        const [breakEndH, breakEndM] = workingHours.break_end_time.split(':').map(Number)
+        const breakStart = breakStartH * 60 + breakStartM
+        const breakEnd = breakEndH * 60 + breakEndM
+
+        const slotMinutes = start.getHours() * 60 + start.getMinutes()
+        const slotEndMinutes = end.getHours() * 60 + end.getMinutes()
+
+        // Check if slot overlaps with break
+        if (slotMinutes < breakEnd && slotEndMinutes > breakStart) {
+          return true
+        }
+      }
+
       const hasAptConflict = (appointments || []).some(apt => {
         const aptStart = new Date(apt.start_time)
         const aptEnd = new Date(apt.end_time)
@@ -96,7 +112,7 @@ export const availabilityService = {
       })
     }
 
-    // 2. If service is short (< 45 min, e.g. Barba = 15 min), find gap slots
+    // 2. If a service is short (< 45 min, e.g. Barba = 15 min), find gap slots
     //    after existing short appointments within the same 45-min block
     if (serviceDuration < standardInterval) {
       for (const apt of (appointments || [])) {

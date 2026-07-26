@@ -23,10 +23,23 @@
             <span class="day-name">{{ day }}</span>
           </label>
         </div>
-        <div v-if="hours[idx].is_working" class="day-times">
-          <input type="time" class="input time-input" v-model="hours[idx].start_time" />
-          <span class="time-sep">a</span>
-          <input type="time" class="input time-input" v-model="hours[idx].end_time" />
+        <div v-if="hours[idx].is_working" class="day-content">
+          <div class="day-times">
+            <input type="time" class="input time-input" v-model="hours[idx].start_time" />
+            <span class="time-sep">a</span>
+            <input type="time" class="input time-input" v-model="hours[idx].end_time" />
+          </div>
+          <div class="break-section">
+            <label class="checkbox-item">
+              <input type="checkbox" v-model="hours[idx].has_break" />
+              <span style="font-size: 13px; color: var(--text-secondary);">Turno partido</span>
+            </label>
+            <div v-if="hours[idx].has_break" class="break-times">
+              <input type="time" class="input time-input small" v-model="hours[idx].break_start_time" />
+              <span class="time-sep">a</span>
+              <input type="time" class="input time-input small" v-model="hours[idx].break_end_time" />
+            </div>
+          </div>
         </div>
         <span v-else class="closed-label">Cerrado</span>
       </div>
@@ -57,7 +70,10 @@ export default {
         day_of_week: i,
         start_time: '09:00',
         end_time: '15:00',
-        is_working: i < 5
+        is_working: i < 5,
+        has_break: false,
+        break_start_time: '12:00',
+        break_end_time: '13:00'
       }))
     }
   },
@@ -74,8 +90,16 @@ export default {
           this.hours = Array.from({ length: 7 }, (_, i) => {
             const existing = data.find(d => d.day_of_week === i)
             return existing
-              ? { day_of_week: i, start_time: existing.start_time.slice(0, 5), end_time: existing.end_time.slice(0, 5), is_working: existing.is_working }
-              : { day_of_week: i, start_time: '09:00', end_time: '15:00', is_working: false }
+              ? {
+                  day_of_week: i,
+                  start_time: existing.start_time.slice(0, 5),
+                  end_time: existing.end_time.slice(0, 5),
+                  is_working: existing.is_working,
+                  has_break: existing.break_start_time && existing.break_end_time ? true : false,
+                  break_start_time: existing.break_start_time ? existing.break_start_time.slice(0, 5) : '12:00',
+                  break_end_time: existing.break_end_time ? existing.break_end_time.slice(0, 5) : '13:00'
+                }
+              : { day_of_week: i, start_time: '09:00', end_time: '15:00', is_working: false, has_break: false, break_start_time: '12:00', break_end_time: '13:00' }
           })
         }
       } catch (e) { useToast().error('Error al cargar horarios') }
@@ -87,7 +111,9 @@ export default {
           day_of_week: h.day_of_week,
           start_time: h.start_time,
           end_time: h.end_time,
-          is_working: h.is_working
+          is_working: h.is_working,
+          break_start_time: h.has_break ? h.break_start_time : null,
+          break_end_time: h.has_break ? h.break_end_time : null
         }))
         await scheduleService.updateWorkingHours(this.selectedBarberId, hoursData)
         useToast().success('Horarios guardados')
@@ -104,15 +130,20 @@ export default {
 .skeleton-list { display: flex; flex-direction: column; gap: 8px; }
 
 .schedule-grid { display: flex; flex-direction: column; gap: 10px; max-width: 500px; }
-.day-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; }
+.day-row { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; }
 .day-header { display: flex; align-items: center; }
+.day-content { display: flex; flex-direction: column; gap: 12px; margin-left: 26px; }
 .checkbox-item { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
 .checkbox-item input { width: 16px; height: 16px; accent-color: var(--accent); }
 .day-name { font-weight: 500; min-width: 90px; }
 .day-times { display: flex; align-items: center; gap: 8px; }
 .time-input { width: 110px; text-align: center; }
+.time-input.small { width: 90px; }
 .time-sep { color: var(--text-tertiary); font-size: 13px; }
 .closed-label { font-size: 13px; color: var(--text-tertiary); }
 .form-group { margin-bottom: 0; }
+.break-section { display: flex; flex-direction: column; gap: 8px; }
+.break-times { display: flex; align-items: center; gap: 8px; margin-left: 26px; }
 </style>
+
 
