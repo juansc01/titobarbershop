@@ -96,7 +96,7 @@ export const availabilityService = {
       })
     }
 
-    // 2. If service is short (< 45 min, e.g. Barba = 20 min), find gap slots
+    // 2. If service is short (< 45 min, e.g. Barba = 15 min), find gap slots
     //    after existing short appointments within the same 45-min block
     if (serviceDuration < standardInterval) {
       for (const apt of (appointments || [])) {
