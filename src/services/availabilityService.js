@@ -62,6 +62,7 @@ export const availabilityService = {
     const workEnd = endH * 60 + endM
     const standardInterval = 45 // Standard session slot
 
+
     // Helper to check if a slot conflicts
     const hasConflictAt = (start, end) => {
       // Check break times
