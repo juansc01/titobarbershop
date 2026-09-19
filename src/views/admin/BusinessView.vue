@@ -48,6 +48,11 @@
                 <input type="checkbox" v-model="day.split" />
                 <span style="font-size: 12px;">Con descanso</span>
               </label>
+              <div v-if="day.open && day.split" class="break-times" style="margin-left: 12px;">
+                <input class="input time-input" type="time" v-model="day.break_start" />
+                <span class="time-sep">—</span>
+                <input class="input time-input" type="time" v-model="day.break_end" />
+              </div>
               <div class="day-closed" v-else>
                 <span>Cerrado</span>
               </div>
@@ -69,13 +74,13 @@ import { supabase } from '../../lib/supabase'
 import { useToast } from '../../composables/useToast'
 
 const DEFAULT_SCHEDULE = [
-  { name: 'Lunes', open: true, start: '09:00', end: '15:00', split: false },
-  { name: 'Martes', open: true, start: '09:00', end: '15:00', split: false },
-  { name: 'Miércoles', open: true, start: '09:00', end: '15:00', split: false },
-  { name: 'Jueves', open: true, start: '09:00', end: '15:00', split: false },
-  { name: 'Viernes', open: true, start: '09:00', end: '15:00', split: false },
-  { name: 'Sábado', open: false, start: '09:00', end: '14:00', split: false },
-  { name: 'Domingo', open: false, start: '09:00', end: '14:00', split: false }
+  { name: 'Lunes', open: true, start: '09:00', end: '15:00', split: false, break_start: '12:00', break_end: '13:00' },
+  { name: 'Martes', open: true, start: '09:00', end: '15:00', split: false, break_start: '12:00', break_end: '13:00' },
+  { name: 'Miércoles', open: true, start: '09:00', end: '15:00', split: false, break_start: '12:00', break_end: '13:00' },
+  { name: 'Jueves', open: true, start: '09:00', end: '15:00', split: false, break_start: '12:00', break_end: '13:00' },
+  { name: 'Viernes', open: true, start: '09:00', end: '15:00', split: false, break_start: '12:00', break_end: '13:00' },
+  { name: 'Sábado', open: false, start: '09:00', end: '14:00', split: false, break_start: '12:00', break_end: '13:00' },
+  { name: 'Domingo', open: false, start: '09:00', end: '14:00', split: false, break_start: '12:00', break_end: '13:00' }
 ]
 
 export default {
