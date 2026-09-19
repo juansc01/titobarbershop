@@ -32,28 +32,50 @@
         <h2 class="section-title">Horario de apertura</h2>
         <div class="card business-card">
           <div class="schedule-editor">
-            <div class="schedule-day" v-for="(day, index) in form.schedule" :key="index">
+            <div class="schedule-day card" v-for="(day, index) in form.schedule" :key="index">
               <div class="day-header">
                 <label class="checkbox-item">
                   <input type="checkbox" v-model="day.open" />
                   <span class="day-label">{{ day.name }}</span>
                 </label>
               </div>
-              <div class="day-times" v-if="day.open">
-                <input class="input time-input" type="time" v-model="day.start" />
-                <span class="time-sep">—</span>
-                <input class="input time-input" type="time" v-model="day.end" />
+
+              <div v-if="day.open" class="day-content">
+                <label class="checkbox-item">
+                  <input type="checkbox" v-model="day.split" />
+                  <span style="font-size: 13px; color: var(--text-secondary);">Turno partido</span>
+                </label>
+
+                <div v-if="!day.split" class="day-times">
+                  <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Horario completo</label>
+                  <input class="input time-input" type="time" v-model="day.start" />
+                  <span class="time-sep">—</span>
+                  <input class="input time-input" type="time" v-model="day.end" />
+                </div>
+
+                <div v-if="day.split" class="split-shift">
+                  <div class="shift-block">
+                    <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 1</label>
+                    <input class="input time-input" type="time" v-model="day.start" />
+                    <span class="time-sep">—</span>
+                    <input class="input time-input" type="time" v-model="day.break_start" />
+                  </div>
+                  <div class="shift-block">
+                    <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Descanso</label>
+                    <input class="input time-input" type="time" v-model="day.break_start" disabled style="opacity: 0.6;" />
+                    <span class="time-sep">—</span>
+                    <input class="input time-input" type="time" v-model="day.break_end" disabled style="opacity: 0.6;" />
+                  </div>
+                  <div class="shift-block">
+                    <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 2</label>
+                    <input class="input time-input" type="time" v-model="day.break_end" disabled style="opacity: 0.6;" />
+                    <span class="time-sep">—</span>
+                    <input class="input time-input" type="time" v-model="day.end" />
+                  </div>
+                </div>
               </div>
-              <label v-if="day.open" class="checkbox-item">
-                <input type="checkbox" v-model="day.split" />
-                <span style="font-size: 12px;">Con descanso</span>
-              </label>
-              <div v-if="day.open && day.split" class="break-times" style="margin-left: 12px;">
-                <input class="input time-input" type="time" v-model="day.break_start" />
-                <span class="time-sep">—</span>
-                <input class="input time-input" type="time" v-model="day.break_end" />
-              </div>
-              <div class="day-closed" v-else>
+
+              <div v-else class="day-closed">
                 <span>Cerrado</span>
               </div>
             </div>
@@ -82,7 +104,6 @@ const DEFAULT_SCHEDULE = [
   { name: 'Sábado', open: false, start: '09:00', end: '14:00', split: false, break_start: '12:00', break_end: '13:00' },
   { name: 'Domingo', open: false, start: '09:00', end: '14:00', split: false, break_start: '12:00', break_end: '13:00' }
 ]
-
 export default {
   name: 'BusinessView',
   data() {
@@ -170,18 +191,23 @@ export default {
 
 .schedule-day {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-color);
+  flex-direction: column;
   gap: 12px;
-  flex-wrap: wrap;
+  padding: 16px 20px;
 }
 
 .schedule-day:last-child { border-bottom: none; }
 
 .day-header {
-  min-width: 130px;
+  display: flex;
+  align-items: center;
+}
+
+.day-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-left: 26px;
 }
 
 .checkbox-item {
@@ -204,6 +230,12 @@ export default {
 
 .day-times {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.day-times > div:first-child {
+  display: flex;
   align-items: center;
   gap: 8px;
 }
@@ -223,6 +255,21 @@ export default {
   font-size: 13px;
   color: var(--text-tertiary);
   font-style: italic;
+}
+
+.split-shift {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shift-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 4px;
 }
 
 .save-btn {
