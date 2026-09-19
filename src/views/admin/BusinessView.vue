@@ -76,6 +76,7 @@ const DEFAULT_SCHEDULE = [
   { name: 'Viernes', open: true, start: '09:00', end: '15:00', split: false },
   { name: 'Sábado', open: false, start: '09:00', end: '14:00', split: false },
   { name: 'Domingo', open: false, start: '09:00', end: '14:00', split: false }
+]
 
 export default {
   name: 'BusinessView',
