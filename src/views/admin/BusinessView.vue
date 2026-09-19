@@ -64,7 +64,7 @@
                     <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Descanso</label>
                     <input class="input time-input" type="time" v-model="day.break_start" disabled style="opacity: 0.6;" />
                     <span class="time-sep">—</span>
-                    <input class="input time-input" type="time" v-model="day.break_end" disabled style="opacity: 0.6;" />
+                    <input class="input time-input" type="time" v-model="day.break_end" />
                   </div>
                   <div class="shift-block">
                     <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 2</label>
@@ -104,6 +104,7 @@ const DEFAULT_SCHEDULE = [
   { name: 'Sábado', open: false, start: '09:00', end: '14:00', split: false, break_start: '12:00', break_end: '13:00' },
   { name: 'Domingo', open: false, start: '09:00', end: '14:00', split: false, break_start: '12:00', break_end: '13:00' }
 ]
+
 export default {
   name: 'BusinessView',
   data() {

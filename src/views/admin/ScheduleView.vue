@@ -47,7 +47,7 @@
               <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Descanso</label>
               <input type="time" class="input time-input" v-model="hours[idx].break_start_time" disabled style="opacity: 0.6;" />
               <span class="time-sep">a</span>
-              <input type="time" class="input time-input" v-model="hours[idx].break_end_time" disabled style="opacity: 0.6;" />
+              <input type="time" class="input time-input" v-model="hours[idx].break_end_time" />
             </div>
             <div class="shift-block">
               <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 2</label>

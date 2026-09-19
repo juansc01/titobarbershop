@@ -155,9 +155,11 @@ export const availabilityService = {
   },
 
   /**
-   * Get available dates for the next N days
+   * Get available dates for the next N days.
+   * Also computes whether each date has at least one free slot
+   * for the given service duration (hasAvailability flag).
    */
-  async getAvailableDates(barberId, days = 30) {
+  async getAvailableDates(barberId, days = 30, serviceDuration = 45) {
     const dates = []
     const now = new Date()
     // Use local date string to avoid UTC timezone shift
@@ -176,6 +178,30 @@ export const availabilityService = {
       .eq('barber_id', barberId)
       .gte('end_date', todayStr)
 
+    // Range boundaries for bulk queries
+    const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const rangeEnd = new Date(rangeStart)
+    rangeEnd.setDate(rangeEnd.getDate() + days)
+
+    // Get all appointments in the range (single query)
+    const { data: appointments } = await supabase
+      .from('appointments')
+      .select('start_time, end_time')
+      .eq('barber_id', barberId)
+      .gte('start_time', rangeStart.toISOString())
+      .lt('start_time', rangeEnd.toISOString())
+      .neq('status', 'cancelled')
+
+    // Get all blocked times in the range (single query)
+    const { data: blocks } = await supabase
+      .from('blocked_times')
+      .select('start_datetime, end_datetime')
+      .eq('barber_id', barberId)
+      .gte('end_datetime', rangeStart.toISOString())
+      .lt('start_datetime', rangeEnd.toISOString())
+
+    const standardInterval = 45
+
     for (let i = 0; i < days; i++) {
       const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)
       const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -192,10 +218,103 @@ export const availabilityService = {
       // Check vacations
       const onVacation = (vacations || []).some(v => dateStr >= v.start_date && dateStr <= v.end_date)
 
-      dates.push({ date: dateStr, onVacation })
+      let hasAvailability = false
+      if (!onVacation) {
+        hasAvailability = this._computeDayHasAvailability(
+          dayHours,
+          dateStr,
+          appointments || [],
+          blocks || [],
+          serviceDuration,
+          standardInterval,
+          now
+        )
+      }
+
+      dates.push({ date: dateStr, onVacation, hasAvailability })
     }
 
     return dates
+  },
+
+  /**
+   * Internal helper: checks if a given day has at least one free slot
+   * for the requested serviceDuration, without hitting the DB again.
+   */
+  _computeDayHasAvailability(dayHours, dateStr, allAppointments, allBlocks, serviceDuration, standardInterval, now) {
+    const dayStart = new Date(dateStr + 'T00:00:00')
+    const dayEnd = new Date(dateStr + 'T23:59:59')
+
+    const appointments = allAppointments.filter(apt => {
+      const t = new Date(apt.start_time)
+      return t >= dayStart && t <= dayEnd
+    })
+    const blocks = allBlocks.filter(b => {
+      const s = new Date(b.start_datetime)
+      const e = new Date(b.end_datetime)
+      return e >= dayStart && s <= dayEnd
+    })
+
+    const [startH, startM] = dayHours.start_time.split(':').map(Number)
+    const [endH, endM] = dayHours.end_time.split(':').map(Number)
+    const workStart = startH * 60 + startM
+    const workEnd = endH * 60 + endM
+
+    const hasConflictAt = (start, end) => {
+      if (dayHours.break_start_time && dayHours.break_end_time) {
+        const [breakStartH, breakStartM] = dayHours.break_start_time.split(':').map(Number)
+        const [breakEndH, breakEndM] = dayHours.break_end_time.split(':').map(Number)
+        const breakStart = breakStartH * 60 + breakStartM
+        const breakEnd = breakEndH * 60 + breakEndM
+        const slotMinutes = start.getHours() * 60 + start.getMinutes()
+        const slotEndMinutes = end.getHours() * 60 + end.getMinutes()
+        if (slotMinutes < breakEnd && slotEndMinutes > breakStart) return true
+      }
+      const hasAptConflict = appointments.some(apt => {
+        const aptStart = new Date(apt.start_time)
+        const aptEnd = new Date(apt.end_time)
+        return start < aptEnd && end > aptStart
+      })
+      const hasBlockConflict = blocks.some(block => {
+        const blockStart = new Date(block.start_datetime)
+        const blockEnd = new Date(block.end_datetime)
+        return start < blockEnd && end > blockStart
+      })
+      return hasAptConflict || hasBlockConflict
+    }
+
+    // Check standard slots
+    for (let minutes = workStart; minutes + serviceDuration <= workEnd; minutes += standardInterval) {
+      const slotStart = new Date(dateStr + 'T00:00:00')
+      slotStart.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
+      const slotEnd = new Date(slotStart)
+      slotEnd.setMinutes(slotEnd.getMinutes() + serviceDuration)
+
+      if (slotStart <= now) continue
+      if (hasConflictAt(slotStart, slotEnd)) continue
+      return true
+    }
+
+    // Check gap slots for short services
+    if (serviceDuration < standardInterval) {
+      for (const apt of appointments) {
+        const aptStart = new Date(apt.start_time)
+        const aptEnd = new Date(apt.end_time)
+        const aptDuration = (aptEnd - aptStart) / 60000
+        if (aptDuration < standardInterval) {
+          const gapStart = new Date(aptEnd)
+          const gapEnd = new Date(gapStart)
+          gapEnd.setMinutes(gapEnd.getMinutes() + serviceDuration)
+          const gapMinutes = gapStart.getHours() * 60 + gapStart.getMinutes()
+          if (gapMinutes + serviceDuration > workEnd) continue
+          if (gapStart <= now) continue
+          if (hasConflictAt(gapStart, gapEnd)) continue
+          return true
+        }
+      }
+    }
+
+    return false
   }
 }
 

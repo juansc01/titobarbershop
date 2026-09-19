@@ -91,12 +91,18 @@
             v-for="d in availableDates"
             :key="d.date"
             class="date-card"
-            :class="{ selected: selectedDate === d.date, vacation: d.onVacation }"
-            @click="!d.onVacation && selectDate(d.date)"
+            :class="{ selected: selectedDate === d.date, vacation: d.onVacation, 'no-availability': !d.onVacation && !d.hasAvailability }"
+            @click="!d.onVacation && d.hasAvailability && selectDate(d.date)"
           >
+            <span
+              v-if="!d.onVacation"
+              class="availability-dot"
+              :class="d.hasAvailability ? 'dot-green' : 'dot-red'"
+            ></span>
             <span class="date-day">{{ formatDay(d.date) }}</span>
             <span class="date-full">{{ formatDate(d.date) }}</span>
             <span v-if="d.onVacation" class="vacation-label">Vacaciones</span>
+            <span v-else-if="!d.hasAvailability" class="vacation-label">Sin huecos</span>
           </div>
         </div>
       </div>
@@ -316,7 +322,11 @@ export default {
     async loadDates() {
       this.loading = true
       try {
-        this.availableDates = await availabilityService.getAvailableDates(this.selectedBarber.id)
+        this.availableDates = await availabilityService.getAvailableDates(
+          this.selectedBarber.id,
+          30,
+          this.selectedService.duration
+        )
       } catch (e) {
         useToast().error('Error al cargar fechas')
       }
@@ -693,6 +703,7 @@ export default {
   cursor: pointer;
   text-align: center;
   transition: var(--transition);
+  position: relative;
 }
 
 .date-card:hover {
@@ -704,15 +715,34 @@ export default {
   background: var(--accent-light);
 }
 
-.date-card.vacation {
+.date-card.vacation,
+.date-card.no-availability {
   border-color: rgba(245, 158, 11, 0.3);
   background: rgba(245, 158, 11, 0.05);
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-.date-card.vacation:hover {
+.date-card.vacation:hover,
+.date-card.no-availability:hover {
   border-color: rgba(245, 158, 11, 0.3);
+}
+
+.availability-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.availability-dot.dot-green {
+  background: var(--success, #10b981);
+}
+
+.availability-dot.dot-red {
+  background: var(--danger, #ef4444);
 }
 
 .vacation-label {
