@@ -24,20 +24,36 @@
           </label>
         </div>
         <div v-if="hours[idx].is_working" class="day-content">
-          <div class="day-times">
+          <label class="checkbox-item">
+            <input type="checkbox" v-model="hours[idx].has_break" />
+            <span style="font-size: 13px; color: var(--text-secondary);">Turno partido</span>
+          </label>
+
+          <div v-if="!hours[idx].has_break" class="day-times">
+            <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Horario completo</label>
             <input type="time" class="input time-input" v-model="hours[idx].start_time" />
             <span class="time-sep">a</span>
             <input type="time" class="input time-input" v-model="hours[idx].end_time" />
           </div>
-          <div class="break-section">
-            <label class="checkbox-item">
-              <input type="checkbox" v-model="hours[idx].has_break" />
-              <span style="font-size: 13px; color: var(--text-secondary);">Turno partido</span>
-            </label>
-            <div v-if="hours[idx].has_break" class="break-times">
-              <input type="time" class="input time-input small" v-model="hours[idx].break_start_time" />
+
+          <div v-if="hours[idx].has_break" class="split-shift">
+            <div class="shift-block">
+              <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 1</label>
+              <input type="time" class="input time-input" v-model="hours[idx].start_time" />
               <span class="time-sep">a</span>
-              <input type="time" class="input time-input small" v-model="hours[idx].break_end_time" />
+              <input type="time" class="input time-input" v-model="hours[idx].break_start_time" />
+            </div>
+            <div class="shift-block">
+              <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Descanso</label>
+              <input type="time" class="input time-input" v-model="hours[idx].break_start_time" disabled style="opacity: 0.6;" />
+              <span class="time-sep">a</span>
+              <input type="time" class="input time-input" v-model="hours[idx].break_end_time" disabled style="opacity: 0.6;" />
+            </div>
+            <div class="shift-block">
+              <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 2</label>
+              <input type="time" class="input time-input" v-model="hours[idx].break_end_time" disabled style="opacity: 0.6;" />
+              <span class="time-sep">a</span>
+              <input type="time" class="input time-input" v-model="hours[idx].end_time" />
             </div>
           </div>
         </div>
@@ -136,14 +152,15 @@ export default {
 .checkbox-item { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
 .checkbox-item input { width: 16px; height: 16px; accent-color: var(--accent); }
 .day-name { font-weight: 500; min-width: 90px; }
-.day-times { display: flex; align-items: center; gap: 8px; }
+.day-times { display: flex; flex-direction: column; gap: 8px; }
+.day-times > div:first-child { display: flex; align-items: center; gap: 8px; }
 .time-input { width: 110px; text-align: center; }
-.time-input.small { width: 90px; }
 .time-sep { color: var(--text-tertiary); font-size: 13px; }
 .closed-label { font-size: 13px; color: var(--text-tertiary); }
 .form-group { margin-bottom: 0; }
-.break-section { display: flex; flex-direction: column; gap: 8px; }
-.break-times { display: flex; align-items: center; gap: 8px; margin-left: 26px; }
+.split-shift { display: flex; flex-direction: column; gap: 10px; }
+.shift-block { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: rgba(99, 102, 241, 0.05); border-radius: 4px; }
+.shift-block .day-times { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 </style>
 
 
