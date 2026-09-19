@@ -91,17 +91,18 @@
             v-for="d in availableDates"
             :key="d.date"
             class="date-card"
-            :class="{ selected: selectedDate === d.date, vacation: d.onVacation, 'no-availability': !d.onVacation && !d.hasAvailability }"
-            @click="!d.onVacation && d.hasAvailability && selectDate(d.date)"
+            :class="{ selected: selectedDate === d.date, vacation: d.onVacation || d.isClosed, 'no-availability': !d.onVacation && !d.isClosed && !d.hasAvailability }"
+            @click="!d.onVacation && !d.isClosed && d.hasAvailability && selectDate(d.date)"
           >
             <span
-              v-if="!d.onVacation"
+              v-if="!d.onVacation && !d.isClosed"
               class="availability-dot"
               :class="d.hasAvailability ? 'dot-green' : 'dot-red'"
             ></span>
             <span class="date-day">{{ formatDay(d.date) }}</span>
-            <span class="date-full">{{ formatDate(d.date) }}</span>
-            <span v-if="d.onVacation" class="vacation-label">Vacaciones</span>
+            <span class="date-full">{{ formatDateShort(d.date) }}</span>
+            <span v-if="d.isClosed" class="vacation-label">Cerrado</span>
+            <span v-else-if="d.onVacation" class="vacation-label">Vacaciones</span>
             <span v-else-if="!d.hasAvailability" class="vacation-label">Sin huecos</span>
           </div>
         </div>
@@ -474,6 +475,11 @@ export default {
       if (!dateStr) return ''
       const d = new Date(dateStr + 'T12:00:00')
       return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+    },
+    formatDateShort(dateStr) {
+      if (!dateStr) return ''
+      const d = new Date(dateStr + 'T12:00:00')
+      return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
     }
   }
 }
@@ -693,10 +699,11 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
+  align-items: stretch;
 }
 
 .date-card {
-  padding: 14px;
+  padding: 10px 8px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   background: var(--bg-card);
@@ -704,6 +711,14 @@ export default {
   text-align: center;
   transition: var(--transition);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 76px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .date-card:hover {
@@ -735,6 +750,7 @@ export default {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .availability-dot.dot-green {
@@ -750,7 +766,8 @@ export default {
   font-size: 10px;
   color: var(--warning);
   font-weight: 600;
-  margin-top: 4px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .date-day {
@@ -759,12 +776,13 @@ export default {
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  margin-bottom: 4px;
 }
 
 .date-full {
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 /* Slots */

@@ -228,7 +228,13 @@ export const availabilityService = {
       if (dayOfWeek < 0) dayOfWeek = 6
 
       const dayHours = (workingHours || []).find(h => h.day_of_week === dayOfWeek)
-      if (!dayHours || !dayHours.is_working) continue
+
+      // Day the barber doesn't work at all (weekly rest day) — still show it,
+      // marked as closed, instead of hiding it from the calendar
+      if (!dayHours || !dayHours.is_working) {
+        dates.push({ date: dateStr, onVacation: false, hasAvailability: false, isClosed: true })
+        continue
+      }
 
       // Check vacations
       const onVacation = (vacations || []).some(v => dateStr >= v.start_date && dateStr <= v.end_date)
@@ -246,7 +252,7 @@ export const availabilityService = {
         )
       }
 
-      dates.push({ date: dateStr, onVacation, hasAvailability })
+      dates.push({ date: dateStr, onVacation, hasAvailability, isClosed: false })
     }
 
     return dates
