@@ -124,13 +124,14 @@ export default {
           if (item.key === 'business_phone' && val) this.phone = val
           if (item.key === 'business_email' && val) this.email = val
           if (item.key === 'business_address' && val) this.address = val
-          if (item.key === 'business_schedule' && Array.isArray(val)) {
-            this.schedule = val.map(day => ({
-              name: day.name,
-              open: day.open,
-              hours: day.open ? `${day.start} - ${day.end}` : ''
-            }))
-          }
+           if (item.key === 'business_schedule' && Array.isArray(val)) {
+             this.schedule = val.map(day => ({
+               name: day.name,
+               open: day.open,
+               hours: day.open ? (day.split ? `${day.start} - ${day.end} (turno partido)` : `${day.start} - ${day.end}`) : '',
+               split: day.split || false
+             }))
+           }
         })
       }
     } catch (e) {
