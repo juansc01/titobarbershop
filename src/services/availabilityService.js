@@ -96,21 +96,36 @@ export const availabilityService = {
 
     const now = new Date()
 
-    // 1. Generate standard 45-min slots
-    for (let minutes = workStart; minutes + serviceDuration <= workEnd; minutes += standardInterval) {
-      const slotStart = new Date(dateStr + 'T00:00:00')
-      slotStart.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
+    // Build work segments (split into two if there's a break, so the
+    // afternoon shift's slot grid restarts exactly at break_end_time)
+    const segments = []
+    if (workingHours.break_start_time && workingHours.break_end_time) {
+      const [breakStartH, breakStartM] = workingHours.break_start_time.split(':').map(Number)
+      const [breakEndH, breakEndM] = workingHours.break_end_time.split(':').map(Number)
+      segments.push([workStart, breakStartH * 60 + breakStartM])
+      segments.push([breakEndH * 60 + breakEndM, workEnd])
+    } else {
+      segments.push([workStart, workEnd])
+    }
 
-      const slotEnd = new Date(slotStart)
-      slotEnd.setMinutes(slotEnd.getMinutes() + serviceDuration)
+    // 1. Generate standard 45-min slots, restarting the grid at the
+    //    start of each work segment (relevant for split shifts)
+    for (const [segStart, segEnd] of segments) {
+      for (let minutes = segStart; minutes + serviceDuration <= segEnd; minutes += standardInterval) {
+        const slotStart = new Date(dateStr + 'T00:00:00')
+        slotStart.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
 
-      if (slotStart <= now) continue
-      if (hasConflictAt(slotStart, slotEnd)) continue
+        const slotEnd = new Date(slotStart)
+        slotEnd.setMinutes(slotEnd.getMinutes() + serviceDuration)
 
-      slots.push({
-        time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
-        datetime: slotStart.toISOString()
-      })
+        if (slotStart <= now) continue
+        if (hasConflictAt(slotStart, slotEnd)) continue
+
+        slots.push({
+          time: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
+          datetime: slotStart.toISOString()
+        })
+      }
     }
 
     // 2. If a service is short (< 45 min, e.g. Barba = 15 min), find gap slots
@@ -283,16 +298,30 @@ export const availabilityService = {
       return hasAptConflict || hasBlockConflict
     }
 
-    // Check standard slots
-    for (let minutes = workStart; minutes + serviceDuration <= workEnd; minutes += standardInterval) {
-      const slotStart = new Date(dateStr + 'T00:00:00')
-      slotStart.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
-      const slotEnd = new Date(slotStart)
-      slotEnd.setMinutes(slotEnd.getMinutes() + serviceDuration)
+    // Build work segments (split into two if there's a break, so the
+    // afternoon shift's slot grid restarts exactly at break_end_time)
+    const segments = []
+    if (dayHours.break_start_time && dayHours.break_end_time) {
+      const [breakStartH, breakStartM] = dayHours.break_start_time.split(':').map(Number)
+      const [breakEndH, breakEndM] = dayHours.break_end_time.split(':').map(Number)
+      segments.push([workStart, breakStartH * 60 + breakStartM])
+      segments.push([breakEndH * 60 + breakEndM, workEnd])
+    } else {
+      segments.push([workStart, workEnd])
+    }
 
-      if (slotStart <= now) continue
-      if (hasConflictAt(slotStart, slotEnd)) continue
-      return true
+    // Check standard slots, restarting the grid at the start of each segment
+    for (const [segStart, segEnd] of segments) {
+      for (let minutes = segStart; minutes + serviceDuration <= segEnd; minutes += standardInterval) {
+        const slotStart = new Date(dateStr + 'T00:00:00')
+        slotStart.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
+        const slotEnd = new Date(slotStart)
+        slotEnd.setMinutes(slotEnd.getMinutes() + serviceDuration)
+
+        if (slotStart <= now) continue
+        if (hasConflictAt(slotStart, slotEnd)) continue
+        return true
+      }
     }
 
     // Check gap slots for short services
