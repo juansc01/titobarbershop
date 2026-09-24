@@ -95,6 +95,8 @@ export const availabilityService = {
     }
 
     const now = new Date()
+    // Minimum lead time: slots starting within the next 60 minutes are not bookable
+    const cutoff = new Date(now.getTime() + 60 * 60 * 1000)
 
     // Build work segments (split into two if there's a break, so the
     // afternoon shift's slot grid restarts exactly at break_end_time)
@@ -118,7 +120,7 @@ export const availabilityService = {
         const slotEnd = new Date(slotStart)
         slotEnd.setMinutes(slotEnd.getMinutes() + serviceDuration)
 
-        if (slotStart <= now) continue
+        if (slotStart < cutoff) continue
         if (hasConflictAt(slotStart, slotEnd)) continue
 
         slots.push({
@@ -148,7 +150,7 @@ export const availabilityService = {
           if (gapMinutes + serviceDuration > workEnd) continue
 
           // Check it doesn't go past the next standard slot's appointment
-          if (gapStart <= now) continue
+          if (gapStart < cutoff) continue
           if (hasConflictAt(gapStart, gapEnd)) continue
 
           // Check it's not already in our slots list
@@ -263,6 +265,8 @@ export const availabilityService = {
    * for the requested serviceDuration, without hitting the DB again.
    */
   _computeDayHasAvailability(dayHours, dateStr, allAppointments, allBlocks, serviceDuration, standardInterval, now) {
+    // Minimum lead time: slots starting within the next 60 minutes are not bookable
+    const cutoff = new Date(now.getTime() + 60 * 60 * 1000)
     const dayStart = new Date(dateStr + 'T00:00:00')
     const dayEnd = new Date(dateStr + 'T23:59:59')
 
@@ -324,7 +328,7 @@ export const availabilityService = {
         const slotEnd = new Date(slotStart)
         slotEnd.setMinutes(slotEnd.getMinutes() + serviceDuration)
 
-        if (slotStart <= now) continue
+        if (slotStart < cutoff) continue
         if (hasConflictAt(slotStart, slotEnd)) continue
         return true
       }
@@ -342,7 +346,7 @@ export const availabilityService = {
           gapEnd.setMinutes(gapEnd.getMinutes() + serviceDuration)
           const gapMinutes = gapStart.getHours() * 60 + gapStart.getMinutes()
           if (gapMinutes + serviceDuration > workEnd) continue
-          if (gapStart <= now) continue
+          if (gapStart < cutoff) continue
           if (hasConflictAt(gapStart, gapEnd)) continue
           return true
         }
