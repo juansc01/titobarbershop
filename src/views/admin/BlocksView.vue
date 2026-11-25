@@ -32,18 +32,31 @@
     <!-- Blocked times -->
     <div class="section">
       <h2 class="section-title">Bloqueos horarios</h2>
-      <div v-if="blocks.length === 0" class="empty-card card">
+      <div v-if="groupedBlocks.length === 0" class="empty-card card">
         <p>No hay bloqueos activos</p>
       </div>
       <div v-else class="blocks-list">
-        <div v-for="b in blocks" :key="b.id" class="block-item card">
+        <div v-for="b in groupedBlocks" :key="b.id" class="block-item card">
           <div class="block-info">
             <strong>{{ b.barbers?.name || 'Peluquero' }}</strong>
             <span>{{ formatDateTime(b.start_datetime) }} - {{ formatDateTime(b.end_datetime) }}</span>
             <span class="block-reason" v-if="b.reason">{{ b.reason }}</span>
+            <span class="block-reason" v-if="b.mergedCount > 1">{{ b.mergedCount }} slots/tramos agrupados</span>
             <span class="badge badge-warning">{{ blockTypeLabel(b.block_type) }}</span>
+
+            <details class="slots-dropdown" v-if="getGroupSlots(b).length > 0">
+              <summary>
+                Gestionar slots ({{ getGroupSlots(b).length }})
+              </summary>
+              <div class="slots-dropdown-content">
+                <div class="slot-row" v-for="slot in getGroupSlots(b)" :key="slot.startIso">
+                  <span>{{ slot.label }}</span>
+                  <button class="btn btn-ghost btn-sm" style="color: var(--danger);" @click.stop="removeSlotFromGroup(b, slot)">Quitar</button>
+                </div>
+              </div>
+            </details>
           </div>
-          <button class="btn btn-ghost btn-sm" style="color: var(--danger)" @click="removeBlock(b.id)">Eliminar</button>
+          <button class="btn btn-ghost btn-sm" style="color: var(--danger)" @click="removeBlockGroup(b)">Eliminar</button>
         </div>
       </div>
     </div>
@@ -155,7 +168,7 @@
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="showBlockModal = false">Cancelar</button>
           <button class="btn btn-primary" @click="saveBlock" :disabled="selectedBlockSlots.length === 0">
-            Bloquear {{ selectedBlockSlots.length }} slot{{ selectedBlockSlots.length !== 1 ? 's' : '' }}
+            {{ allDaySlotsSelected() ? 'Bloquear día completo' : `Bloquear ${selectedBlockSlots.length} slot${selectedBlockSlots.length !== 1 ? 's' : ''}` }}
           </button>
         </div>
       </div>
@@ -169,6 +182,7 @@ import { barbersService } from '../../services/barbersService'
 import { appointmentsService } from '../../services/appointmentsService'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../composables/useToast'
+import { availabilityService } from '../../services/availabilityService'
 
 export default {
   name: 'BlocksView',
@@ -190,6 +204,63 @@ export default {
   },
   async mounted() {
     await this.loadData()
+  },
+  computed: {
+    groupedBlocks() {
+      const source = [...this.blocks]
+      if (source.length === 0) return []
+
+      const byKey = new Map()
+      for (const block of source) {
+        const start = new Date(block.start_datetime)
+        const end = new Date(block.end_datetime)
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) continue
+
+        const dayKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
+        const groupKey = `${block.barber_id}|${block.block_type}|${block.reason || ''}|${dayKey}`
+
+        const list = byKey.get(groupKey) || []
+        list.push({ ...block, _start: start, _end: end })
+        byKey.set(groupKey, list)
+      }
+
+      const grouped = []
+      for (const list of byKey.values()) {
+        list.sort((a, b) => a._start - b._start)
+        let current = null
+
+        for (const block of list) {
+          if (!current) {
+            current = {
+              ...block,
+              ids: [block.id],
+              mergedCount: 1
+            }
+            continue
+          }
+
+          if (block._start.getTime() <= current._end.getTime()) {
+            if (block._end.getTime() > current._end.getTime()) {
+              current._end = block._end
+              current.end_datetime = block.end_datetime
+            }
+            current.ids.push(block.id)
+            current.mergedCount += 1
+          } else {
+            grouped.push(current)
+            current = {
+              ...block,
+              ids: [block.id],
+              mergedCount: 1
+            }
+          }
+        }
+
+        if (current) grouped.push(current)
+      }
+
+      return grouped.sort((a, b) => new Date(b.start_datetime) - new Date(a.start_datetime))
+    }
   },
   methods: {
     async loadData() {
@@ -250,17 +321,8 @@ export default {
       this.bookedWarnings = []
 
       try {
-        // Get working hours for the barber on this day
-        const jsDate = new Date(this.blockForm.date + 'T12:00:00')
-        let dayOfWeek = jsDate.getDay() - 1
-        if (dayOfWeek < 0) dayOfWeek = 6
-
-        const { data: wh } = await supabase
-          .from('working_hours')
-          .select('*')
-          .eq('barber_id', this.blockForm.barber_id)
-          .eq('day_of_week', dayOfWeek)
-          .single()
+        // Use effective schedule for the requested date (scheduled program or weekly fallback)
+        const wh = await availabilityService.getEffectiveWorkingHours(this.blockForm.barber_id, this.blockForm.date)
 
         if (!wh || !wh.is_working) {
           this.daySlots = []
@@ -286,32 +348,44 @@ export default {
         const workStart = startH * 60 + startM
         const workEnd = endH * 60 + endM
 
+        const segments = []
+        if (wh.break_start_time && wh.break_end_time) {
+          const [breakStartH, breakStartM] = wh.break_start_time.split(':').map(Number)
+          const [breakEndH, breakEndM] = wh.break_end_time.split(':').map(Number)
+          segments.push([workStart, breakStartH * 60 + breakStartM])
+          segments.push([breakEndH * 60 + breakEndM, workEnd])
+        } else {
+          segments.push([workStart, workEnd])
+        }
+
         const slots = []
-        for (let min = workStart; min + 45 <= workEnd; min += 45) {
-          const h = Math.floor(min / 60)
-          const m = min % 60
-          const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
+        for (const [segmentStart, segmentEnd] of segments) {
+          for (let min = segmentStart; min + 45 <= segmentEnd; min += 45) {
+            const h = Math.floor(min / 60)
+            const m = min % 60
+            const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
 
-          const slotStart = new Date(this.blockForm.date + 'T00:00:00')
-          slotStart.setHours(h, m, 0, 0)
-          const slotEnd = new Date(slotStart)
-          slotEnd.setMinutes(slotEnd.getMinutes() + 45)
+            const slotStart = new Date(this.blockForm.date + 'T00:00:00')
+            slotStart.setHours(h, m, 0, 0)
+            const slotEnd = new Date(slotStart)
+            slotEnd.setMinutes(slotEnd.getMinutes() + 45)
 
-          // Check if booked
-          const bookedApt = (apts || []).find(apt => {
-            const aptStart = new Date(apt.start_time)
-            const aptEnd = new Date(apt.end_time)
-            return slotStart < aptEnd && slotEnd > aptStart
-          })
+            // Check if booked
+            const bookedApt = (apts || []).find(apt => {
+              const aptStart = new Date(apt.start_time)
+              const aptEnd = new Date(apt.end_time)
+              return slotStart < aptEnd && slotEnd > aptStart
+            })
 
-          slots.push({
-            time: timeStr,
-            datetime: slotStart.toISOString(),
-            booked: !!bookedApt,
-            customerName: bookedApt?.customers?.name || '',
-            customerPhone: bookedApt?.customers?.phone || '',
-            serviceName: bookedApt?.services?.name || ''
-          })
+            slots.push({
+              time: timeStr,
+              datetime: slotStart.toISOString(),
+              booked: !!bookedApt,
+              customerName: bookedApt?.customers?.name || '',
+              customerPhone: bookedApt?.customers?.phone || '',
+              serviceName: bookedApt?.services?.name || ''
+            })
+          }
         }
 
         this.daySlots = slots
@@ -340,6 +414,44 @@ export default {
         this.selectedBlockSlots.push(slot.time)
       }
     },
+    allDaySlotsSelected() {
+      return this.daySlots.length > 0 && this.selectedBlockSlots.length === this.daySlots.length
+    },
+    getSelectedSlotRanges() {
+      const slotDuration = 45
+      const selected = this.daySlots
+        .filter(slot => this.selectedBlockSlots.includes(slot.time))
+        .map(slot => ({
+          ...slot,
+          start: new Date(slot.datetime)
+        }))
+        .sort((a, b) => a.start - b.start)
+
+      if (selected.length === 0) return []
+
+      const ranges = []
+      let currentStart = new Date(selected[0].start)
+      let currentEnd = new Date(selected[0].start)
+      currentEnd.setMinutes(currentEnd.getMinutes() + slotDuration)
+
+      for (let i = 1; i < selected.length; i++) {
+        const nextStart = new Date(selected[i].start)
+        const expectedNext = new Date(currentEnd)
+
+        if (nextStart.getTime() === expectedNext.getTime()) {
+          currentEnd = new Date(nextStart)
+          currentEnd.setMinutes(currentEnd.getMinutes() + slotDuration)
+        } else {
+          ranges.push({ start: new Date(currentStart), end: new Date(currentEnd) })
+          currentStart = new Date(nextStart)
+          currentEnd = new Date(nextStart)
+          currentEnd.setMinutes(currentEnd.getMinutes() + slotDuration)
+        }
+      }
+
+      ranges.push({ start: new Date(currentStart), end: new Date(currentEnd) })
+      return ranges
+    },
     async saveVacation() {
       if (!this.vacForm.barber_id || !this.vacForm.start_date || !this.vacForm.end_date) {
         useToast().error('Selecciona peluquero y fechas'); return
@@ -356,23 +468,47 @@ export default {
         useToast().error('Selecciona al menos un slot'); return
       }
       try {
-        // Create a block for each selected slot
-        for (const time of this.selectedBlockSlots) {
-          const [h, m] = time.split(':').map(Number)
-          const start = new Date(this.blockForm.date + 'T00:00:00')
-          start.setHours(h, m, 0, 0)
-          const end = new Date(start)
-          end.setMinutes(end.getMinutes() + 45)
+        const selectedRanges = this.getSelectedSlotRanges()
+
+        if (this.allDaySlotsSelected()) {
+          const sortedDaySlots = [...this.daySlots].sort((a, b) => a.time.localeCompare(b.time))
+          const firstSlot = sortedDaySlots[0]
+          const lastSlot = sortedDaySlots[sortedDaySlots.length - 1]
+
+          const dayStart = new Date(firstSlot.datetime)
+          const dayEnd = new Date(lastSlot.datetime)
+          dayEnd.setMinutes(dayEnd.getMinutes() + 45)
 
           await scheduleService.createBlock({
             barber_id: this.blockForm.barber_id,
             block_type: this.blockForm.block_type,
-            start_datetime: start.toISOString(),
-            end_datetime: end.toISOString(),
-            reason: this.blockForm.reason || null
+            start_datetime: dayStart.toISOString(),
+            end_datetime: dayEnd.toISOString(),
+            reason: this.blockForm.reason || 'Día completo'
           })
+
+          useToast().success('Día completo bloqueado')
+        } else {
+          // For partial selections, merge consecutive slots into a single range
+          for (const range of selectedRanges) {
+            const rangeLabel = `${range.start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${range.end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+
+            await scheduleService.createBlock({
+              barber_id: this.blockForm.barber_id,
+              block_type: this.blockForm.block_type,
+              start_datetime: range.start.toISOString(),
+              end_datetime: range.end.toISOString(),
+              reason: this.blockForm.reason || `Bloqueo horario ${rangeLabel}`
+            })
+          }
+
+          useToast().success(
+            selectedRanges.length === 1
+              ? 'Tramo horario bloqueado'
+              : `${selectedRanges.length} tramo(s) bloqueado(s)`
+          )
         }
-        useToast().success(`${this.selectedBlockSlots.length} slot(s) bloqueado(s)`)
+
         this.showBlockModal = false
         await this.loadData()
       } catch (e) { useToast().error('Error al crear bloqueo') }
@@ -380,6 +516,92 @@ export default {
     async removeVacation(id) {
       if (!confirm('¿Eliminar vacaciones?')) return
       try { await scheduleService.deleteVacation(id); await this.loadData(); useToast().success('Eliminado') } catch (e) { useToast().error('Error') }
+    },
+    async removeBlockGroup(group) {
+      const ids = Array.isArray(group.ids) ? group.ids : [group.id]
+      const confirmMsg = ids.length > 1
+        ? `¿Eliminar este tramo agrupado? Se borrarán ${ids.length} bloqueos.`
+        : '¿Eliminar bloqueo?'
+      if (!confirm(confirmMsg)) return
+
+      try {
+        for (const id of ids) {
+          await scheduleService.deleteBlock(id)
+        }
+        await this.loadData()
+        useToast().success('Eliminado')
+      } catch (e) {
+        useToast().error('Error')
+      }
+    },
+    getGroupSlots(group) {
+      const slotMinutes = 45
+      const start = new Date(group.start_datetime)
+      const end = new Date(group.end_datetime)
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return []
+
+      const slots = []
+      const cursor = new Date(start)
+      let safeGuard = 0
+
+      while (cursor < end && safeGuard < 200) {
+        const slotStart = new Date(cursor)
+        const slotEnd = new Date(cursor)
+        slotEnd.setMinutes(slotEnd.getMinutes() + slotMinutes)
+        if (slotEnd > end) break
+
+        slots.push({
+          startIso: slotStart.toISOString(),
+          label: `${slotStart.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${slotEnd.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+        })
+
+        cursor.setMinutes(cursor.getMinutes() + slotMinutes)
+        safeGuard += 1
+      }
+
+      return slots
+    },
+    async removeSlotFromGroup(group, slot) {
+      const slotStart = new Date(slot.startIso)
+      const slotEnd = new Date(slotStart)
+      slotEnd.setMinutes(slotEnd.getMinutes() + 45)
+
+      const groupStart = new Date(group.start_datetime)
+      const groupEnd = new Date(group.end_datetime)
+      const ids = Array.isArray(group.ids) ? group.ids : [group.id]
+
+      if (!confirm(`¿Quitar el slot ${slot.label}? El tramo se dividirá automáticamente.`)) return
+
+      try {
+        for (const id of ids) {
+          await scheduleService.deleteBlock(id)
+        }
+
+        if (slotStart > groupStart) {
+          await scheduleService.createBlock({
+            barber_id: group.barber_id,
+            block_type: group.block_type,
+            start_datetime: groupStart.toISOString(),
+            end_datetime: slotStart.toISOString(),
+            reason: group.reason || null
+          })
+        }
+
+        if (slotEnd < groupEnd) {
+          await scheduleService.createBlock({
+            barber_id: group.barber_id,
+            block_type: group.block_type,
+            start_datetime: slotEnd.toISOString(),
+            end_datetime: groupEnd.toISOString(),
+            reason: group.reason || null
+          })
+        }
+
+        await this.loadData()
+        useToast().success('Slot eliminado y tramo actualizado')
+      } catch (e) {
+        useToast().error('No se pudo quitar el slot')
+      }
     },
     async removeBlock(id) {
       if (!confirm('¿Eliminar bloqueo?')) return
@@ -411,6 +633,44 @@ export default {
 .block-info strong { font-size: 14px; }
 .block-info span { color: var(--text-secondary); font-size: 13px; }
 .block-reason { font-style: italic; }
+
+.slots-dropdown {
+  margin-top: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.slots-dropdown summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.slots-dropdown summary::-webkit-details-marker { display: none; }
+
+.slots-dropdown-content {
+  border-top: 1px solid var(--border-color);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
 
 .form-group { margin-bottom: 16px; min-width: 0; overflow: hidden; }
 .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }

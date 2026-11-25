@@ -85,6 +85,8 @@ export default {
       editingAppointment: null,
       services: [],
       barbers: [],
+      affectedAppointmentIds: [],
+      affectedCalendarStart: '',
       form: {
         customerName: '',
         customerPhone: '',
@@ -96,6 +98,7 @@ export default {
     }
   },
   async mounted() {
+    this.loadAffectedAppointmentsContext()
     await this.loadData()
     this.initCalendar()
   },
@@ -111,11 +114,30 @@ export default {
       this.services = services
       this.barbers = barbers
     },
+    loadAffectedAppointmentsContext() {
+      const idsRaw = sessionStorage.getItem('affected_appointments_ids')
+      if (!idsRaw) return
+
+      try {
+        const ids = JSON.parse(idsRaw)
+        if (Array.isArray(ids) && ids.length > 0) {
+          this.affectedAppointmentIds = ids
+          this.affectedCalendarStart = typeof this.$route.query.start === 'string' ? this.$route.query.start : ''
+          useToast().warning(`Mostrando ${ids.length} cita(s) afectada(s) para revisión`) 
+        }
+      } catch (e) {
+        this.affectedAppointmentIds = []
+      }
+
+      sessionStorage.removeItem('affected_appointments_ids')
+      sessionStorage.removeItem('affected_appointments_context')
+    },
     initCalendar() {
       const el = this.$refs.calendarEl
       this.calendar = new Calendar(el, {
         plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
         initialView: 'timeGridWeek',
+        initialDate: this.affectedCalendarStart || undefined,
         locale: 'es',
         headerToolbar: {
           left: 'prev,next today',
@@ -135,17 +157,25 @@ export default {
               from: info.startStr,
               to: info.endStr
             })
-            const events = data
+            let events = data
               .filter(apt => apt.status !== 'cancelled')
+              .filter(apt => this.affectedAppointmentIds.length === 0 || this.affectedAppointmentIds.includes(apt.id))
               .map(apt => ({
                 id: apt.id,
                 title: `${apt.customers?.name || 'Cliente'} - ${apt.services?.name || 'Servicio'}`,
                 start: apt.start_time,
                 end: apt.end_time,
-                backgroundColor: apt.barbers?.color || '#6366f1',
-                borderColor: apt.barbers?.color || '#6366f1',
+                backgroundColor: this.affectedAppointmentIds.includes(apt.id) ? '#ef4444' : (apt.barbers?.color || '#6366f1'),
+                borderColor: this.affectedAppointmentIds.includes(apt.id) ? '#ef4444' : (apt.barbers?.color || '#6366f1'),
                 extendedProps: apt
               }))
+
+            if (this.affectedAppointmentIds.length > 0) {
+              events = events.map(event => ({
+                ...event,
+                title: `⚠ ${event.title}`
+              }))
+            }
             successCallback(events)
           } catch (e) {
             successCallback([])

@@ -194,9 +194,10 @@
               </div>
               <div class="summary-row highlight">
                 <span class="summary-label">Precio</span>
-                <span class="summary-value">{{ selectedService?.price }}€</span>
+                <span class="summary-value">{{ bookingPrice }}€</span>
               </div>
             </div>
+            <p v-if="isFreeCustomer" class="free-customer-note">Cliente bonificado: reserva sin coste.</p>
           </div>
 
           <button type="submit" class="btn btn-primary btn-lg confirm-btn" :disabled="submitting">
@@ -254,6 +255,7 @@ import { appointmentsService } from '../services/appointmentsService'
 import { customersService } from '../services/customersService'
 import { emailService } from '../services/emailService'
 import { useToast } from '../composables/useToast'
+import { isFreeCustomerPhone } from '../lib/pricingRules'
 
 export default {
   name: 'BookingPage',
@@ -295,6 +297,13 @@ export default {
       return this.barbers.filter(b =>
         b.barber_services?.some(bs => bs.service_id === this.selectedService.id)
       )
+    },
+    isFreeCustomer() {
+      return isFreeCustomerPhone(this.customer.phone)
+    },
+    bookingPrice() {
+      if (!this.selectedService) return 0
+      return this.isFreeCustomer ? 0 : Number(this.selectedService.price || 0)
     }
   },
   async mounted() {
@@ -431,7 +440,7 @@ export default {
           customer_id: customerData.id,
           start_time: startTime.toISOString(),
           end_time: endTime.toISOString(),
-          price: this.selectedService.price,
+          price: this.bookingPrice,
           notes: this.customer.notes || null
         })
 
@@ -447,7 +456,7 @@ export default {
           barber: this.selectedBarber.name,
           date: startTime.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
           time: startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-          price: this.selectedService.price
+          price: this.bookingPrice
         }
         emailService.notifyNewAppointment(notificationData)
           .then(() => console.log('Email notification sent'))
@@ -874,6 +883,12 @@ export default {
   color: var(--accent);
   font-weight: 700;
   font-size: 16px;
+}
+
+.free-customer-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--success);
 }
 
 .confirm-btn {

@@ -146,7 +146,7 @@ export const appointmentsService = {
 
     const { data, error } = await supabase
       .from('appointments')
-      .select('*, services(price)')
+      .select('*, services(price), customers(phone)')
       .gte('start_time', weekStart.toISOString())
       .lte('start_time', weekEnd.toISOString())
       .neq('status', 'cancelled')

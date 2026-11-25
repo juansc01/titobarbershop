@@ -41,6 +41,10 @@ Las migraciones se encuentran en `supabase/migrations/`:
 
 1. `20240101000000_initial_schema.sql` - Esquema completo de la base de datos
 2. `20240101000001_seed_data.sql` - Datos iniciales (peluquero Nacho, servicios, horarios)
+3. `20240101000002_prevent_overlapping_appointments.sql` - Evita solapamientos de citas confirmadas
+4. `20240101000003_business_schedule.sql` - Ajustes de datos de negocio
+5. `20240101000004_add_break_times.sql` - Soporte de turnos partidos
+6. `20261125000005_scheduled_hours.sql` - Horarios programados por rango de fechas
 
 ### Ejecutar migraciones
 
@@ -104,6 +108,7 @@ src/
 - **Servicios** CRUD completo
 - **Peluqueros** CRUD completo con asignación de servicios
 - **Horarios** configurables por peluquero y día
+- **Horarios programados** (crear/editar/cancelar periodos futuros con estado Programado/Vigente/Finalizado)
 - **Bloqueos** (vacaciones, descansos, ausencias)
 
 ## Scripts

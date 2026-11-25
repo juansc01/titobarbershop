@@ -89,6 +89,7 @@
 import { appointmentsService } from '../../services/appointmentsService'
 import { customersService } from '../../services/customersService'
 import { calendarService } from '../../services/calendarService'
+import { getAppointmentEffectivePrice } from '../../lib/pricingRules'
 
 export default {
   name: 'DashboardView',
@@ -132,7 +133,9 @@ export default {
         // Only count revenue for past appointments (already completed)
         const now = new Date()
         const pastAppointments = weekly.filter(a => new Date(a.end_time || a.start_time) < now)
-        this.stats.weeklyRevenue = pastAppointments.reduce((sum, a) => sum + (parseFloat(a.services?.price) || parseFloat(a.price) || 0), 0).toFixed(0)
+        this.stats.weeklyRevenue = pastAppointments
+          .reduce((sum, a) => sum + getAppointmentEffectivePrice(a), 0)
+          .toFixed(0)
       } catch (e) {
         console.error(e)
       }

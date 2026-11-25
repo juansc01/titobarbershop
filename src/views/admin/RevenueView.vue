@@ -74,6 +74,7 @@
 
 <script>
 import { supabase } from '../../lib/supabase'
+import { getAppointmentEffectivePrice } from '../../lib/pricingRules'
 
 export default {
   name: 'RevenueView',
@@ -103,7 +104,7 @@ export default {
       return this.appointments.filter(a => a.status !== 'cancelled')
     },
     totalRevenue() {
-      return this.completedAppointments.reduce((sum, a) => sum + (a.price || a.services?.price || 0), 0).toFixed(0)
+      return this.completedAppointments.reduce((sum, a) => sum + getAppointmentEffectivePrice(a), 0).toFixed(0)
     },
     totalAppointments() {
       return this.completedAppointments.length
@@ -134,7 +135,7 @@ export default {
       this.completedAppointments.forEach(apt => {
         const barberId = apt.barber_id
         if (!stats[barberId]) return
-        const price = apt.price || apt.services?.price || 0
+        const price = getAppointmentEffectivePrice(apt)
         stats[barberId].revenue += price
         stats[barberId].count++
 
@@ -181,7 +182,7 @@ export default {
           supabase.from('barbers').select('id, name, color').order('sort_order'),
           supabase
             .from('appointments')
-            .select('*, services(name, price)')
+            .select('*, services(name, price), customers(phone)')
             .gte('start_time', this.monthStart)
             .lte('start_time', this.monthEnd)
             .neq('status', 'cancelled')

@@ -58,6 +58,11 @@ const routes = [
         component: () => import("../views/admin/ScheduleView.vue"),
       },
       {
+        path: "horarios-programados",
+        name: "AdminScheduledHours",
+        component: () => import("../views/admin/ScheduledHoursView.vue"),
+      },
+      {
         path: "bloqueos",
         name: "AdminBlocks",
         component: () => import("../views/admin/BlocksView.vue"),

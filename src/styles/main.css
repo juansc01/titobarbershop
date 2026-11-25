@@ -189,6 +189,65 @@ input[type="datetime-local"].input {
   margin-bottom: 6px;
 }
 
+/* Enhanced select fields */
+.select-field {
+  position: relative;
+}
+
+.select-field::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -6px;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  transform: rotate(45deg);
+  pointer-events: none;
+  transition: var(--transition);
+}
+
+.select-field > select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 40px;
+}
+
+.select-field > select.input:hover {
+  border-color: var(--border-light);
+}
+
+.select-field > select.input:focus {
+  border-color: var(--accent);
+}
+
+.select-field.select-barber::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 5px var(--accent-light);
+  pointer-events: none;
+}
+
+.select-field.select-barber > select.input {
+  padding-left: 36px;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+}
+
+.select-field:focus-within::after {
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* Badge */
 .badge {
   display: inline-flex;

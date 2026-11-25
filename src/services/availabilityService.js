@@ -1,24 +1,77 @@
 import { supabase } from '../lib/supabase'
 
+const normalizeDate = (date) => (date instanceof Date ? date.toISOString().split('T')[0] : date)
+
+const getDayOfWeek = (dateStr) => {
+  const jsDate = new Date(dateStr + 'T12:00:00')
+  let dayOfWeek = jsDate.getDay() - 1
+  if (dayOfWeek < 0) dayOfWeek = 6
+  return dayOfWeek
+}
+
+const resolveDayHours = (dateStr, weeklyByDay, programs, programHoursByProgramId) => {
+  const dayOfWeek = getDayOfWeek(dateStr)
+  const activeProgram = (programs || []).find(program => {
+    const withinStart = dateStr >= program.start_date
+    const withinEnd = !program.end_date || dateStr <= program.end_date
+    return withinStart && withinEnd
+  })
+
+  if (activeProgram) {
+    const programHours = programHoursByProgramId.get(activeProgram.id) || []
+    const dayHours = programHours.find(h => h.day_of_week === dayOfWeek)
+    if (dayHours) return dayHours
+  }
+
+  return weeklyByDay.get(dayOfWeek) || null
+}
+
 export const availabilityService = {
-  /**
-   * Get available time slots for a barber on a specific date
-   */
-  async getAvailableSlots(barberId, date, serviceDuration) {
-    const dateStr = date instanceof Date ? date.toISOString().split('T')[0] : date
-    const jsDate = new Date(dateStr + 'T12:00:00')
+  async getEffectiveWorkingHours(barberId, date) {
+    const dateStr = normalizeDate(date)
+    const dayOfWeek = getDayOfWeek(dateStr)
 
-    // Get day of week (0=Monday, 6=Sunday)
-    let dayOfWeek = jsDate.getDay() - 1
-    if (dayOfWeek < 0) dayOfWeek = 6
+    const { data: activeProgram, error: programError } = await supabase
+      .from('schedule_programs')
+      .select('id')
+      .eq('barber_id', barberId)
+      .is('cancelled_at', null)
+      .lte('start_date', dateStr)
+      .or(`end_date.gte.${dateStr},end_date.is.null`)
+      .order('start_date', { ascending: false })
+      .limit(1)
 
-    // Get working hours for this day
-    const { data: workingHours } = await supabase
+    if (programError) throw programError
+
+    if (activeProgram && activeProgram.length > 0) {
+      const { data: programHours, error: programHoursError } = await supabase
+        .from('schedule_program_hours')
+        .select('*')
+        .eq('program_id', activeProgram[0].id)
+        .eq('day_of_week', dayOfWeek)
+        .single()
+
+      if (programHoursError && programHoursError.code !== 'PGRST116') throw programHoursError
+      if (programHours) return programHours
+    }
+
+    const { data: weeklyHours, error: weeklyError } = await supabase
       .from('working_hours')
       .select('*')
       .eq('barber_id', barberId)
       .eq('day_of_week', dayOfWeek)
       .single()
+
+    if (weeklyError && weeklyError.code !== 'PGRST116') throw weeklyError
+    return weeklyHours || null
+  },
+
+  /**
+   * Get available time slots for a barber on a specific date
+   */
+  async getAvailableSlots(barberId, date, serviceDuration) {
+    const dateStr = normalizeDate(date)
+    const workingHours = await this.getEffectiveWorkingHours(barberId, dateStr)
 
     if (!workingHours || !workingHours.is_working) return []
 
@@ -182,8 +235,8 @@ export const availabilityService = {
     // Use local date string to avoid UTC timezone shift
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
-    // Get all working hours for this barber
-    const { data: workingHours } = await supabase
+    // Get weekly fallback hours for this barber
+    const { data: weeklyHours } = await supabase
       .from('working_hours')
       .select('*')
       .eq('barber_id', barberId)
@@ -199,6 +252,35 @@ export const availabilityService = {
     const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const rangeEnd = new Date(rangeStart)
     rangeEnd.setDate(rangeEnd.getDate() + days)
+    const rangeStartStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth() + 1).padStart(2, '0')}-${String(rangeStart.getDate()).padStart(2, '0')}`
+    const rangeEndStr = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth() + 1).padStart(2, '0')}-${String(rangeEnd.getDate()).padStart(2, '0')}`
+
+    const { data: schedulePrograms } = await supabase
+      .from('schedule_programs')
+      .select('id, start_date, end_date')
+      .eq('barber_id', barberId)
+      .is('cancelled_at', null)
+      .lte('start_date', rangeEndStr)
+      .or(`end_date.gte.${rangeStartStr},end_date.is.null`)
+      .order('start_date', { ascending: false })
+
+    const programIds = (schedulePrograms || []).map(p => p.id)
+    let programHoursByProgramId = new Map()
+    if (programIds.length > 0) {
+      const { data: programHours } = await supabase
+        .from('schedule_program_hours')
+        .select('*')
+        .in('program_id', programIds)
+
+      programHoursByProgramId = (programHours || []).reduce((acc, item) => {
+        const list = acc.get(item.program_id) || []
+        list.push(item)
+        acc.set(item.program_id, list)
+        return acc
+      }, new Map())
+    }
+
+    const weeklyByDay = new Map((weeklyHours || []).map(h => [h.day_of_week, h]))
 
     // Get all appointments in the range (single query)
     const { data: appointments } = await supabase
@@ -226,10 +308,12 @@ export const availabilityService = {
       // Skip past dates (safety check)
       if (dateStr < todayStr) continue
 
-      let dayOfWeek = date.getDay() - 1
-      if (dayOfWeek < 0) dayOfWeek = 6
-
-      const dayHours = (workingHours || []).find(h => h.day_of_week === dayOfWeek)
+      const dayHours = resolveDayHours(
+        dateStr,
+        weeklyByDay,
+        schedulePrograms || [],
+        programHoursByProgramId
+      )
 
       // Day the barber doesn't work at all (weekly rest day) — still show it,
       // marked as closed, instead of hiding it from the calendar

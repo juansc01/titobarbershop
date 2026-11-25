@@ -48,29 +48,29 @@
 
                 <div v-if="!day.split" class="day-times">
                   <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Horario completo</label>
-                  <input class="input time-input" type="time" v-model="day.start" />
+                  <input class="input time-input" type="time" step="900" v-model="day.start" />
                   <span class="time-sep">—</span>
-                  <input class="input time-input" type="time" v-model="day.end" />
+                  <input class="input time-input" type="time" step="900" v-model="day.end" />
                 </div>
 
                 <div v-if="day.split" class="split-shift">
                   <div class="shift-block">
                     <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 1</label>
-                    <input class="input time-input" type="time" v-model="day.start" />
+                    <input class="input time-input" type="time" step="900" v-model="day.start" />
                     <span class="time-sep">—</span>
-                    <input class="input time-input" type="time" v-model="day.break_start" />
+                    <input class="input time-input" type="time" step="900" v-model="day.break_start" />
                   </div>
                   <div class="shift-block">
                     <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Descanso</label>
-                    <input class="input time-input" type="time" v-model="day.break_start" disabled style="opacity: 0.6;" />
+                    <input class="input time-input" type="time" step="900" v-model="day.break_start" disabled style="opacity: 0.6;" />
                     <span class="time-sep">—</span>
-                    <input class="input time-input" type="time" v-model="day.break_end" />
+                    <input class="input time-input" type="time" step="900" v-model="day.break_end" />
                   </div>
                   <div class="shift-block">
                     <label style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block;">Turno 2</label>
-                    <input class="input time-input" type="time" v-model="day.break_end" disabled style="opacity: 0.6;" />
+                    <input class="input time-input" type="time" step="900" v-model="day.break_end" disabled style="opacity: 0.6;" />
                     <span class="time-sep">—</span>
-                    <input class="input time-input" type="time" v-model="day.end" />
+                    <input class="input time-input" type="time" step="900" v-model="day.end" />
                   </div>
                 </div>
               </div>
