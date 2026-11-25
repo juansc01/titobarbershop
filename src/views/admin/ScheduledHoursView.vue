@@ -72,7 +72,7 @@
             <div class="form-group">
               <label class="label">Fecha de inicio</label>
               <div class="date-field">
-                <input class="input date-input" type="date" v-model="form.start_date" />
+                <input class="input date-input" type="date" v-model="form.start_date" :min="todayDate" />
               </div>
             </div>
             <div class="form-group">
@@ -178,6 +178,10 @@ export default {
     }
   },
   computed: {
+    todayDate() {
+      const today = new Date()
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    },
     endDateMin() {
       return this.form.start_date || ''
     },
@@ -277,6 +281,10 @@ export default {
     async validateAndCollectWarnings() {
       if (!this.form.start_date) {
         useToast().error('La fecha de inicio es obligatoria')
+        return false
+      }
+      if (this.form.start_date < this.todayDate) {
+        useToast().error('La fecha de inicio no puede ser anterior a hoy')
         return false
       }
       if (this.form.end_date && this.form.end_date < this.form.start_date) {
