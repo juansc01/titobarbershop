@@ -358,10 +358,14 @@ input[type="datetime-local"].input {
   padding: 32px;
   max-width: 500px;
   width: 100%;
-  margin: auto 0;
+  margin: 0;
   animation: slideUp 0.3s ease;
   position: relative;
-  overflow: hidden;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 /* Toast / Notifications */
@@ -449,8 +453,7 @@ tr:hover td {
 
   .modal-content {
     padding: 20px;
-    margin-top: 40px;
-    margin-bottom: 40px;
+    max-height: calc(100dvh - 32px);
   }
 
   .input,

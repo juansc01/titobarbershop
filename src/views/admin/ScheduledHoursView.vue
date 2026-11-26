@@ -72,13 +72,27 @@
             <div class="form-group">
               <label class="label">Fecha de inicio</label>
               <div class="date-field">
-                <input class="input date-input" type="date" v-model="form.start_date" :min="todayDate" />
+                <input
+                  class="input date-input"
+                  type="date"
+                  v-model="form.start_date"
+                  :min="todayDate"
+                  @change="enforceStartDate"
+                  @blur="enforceStartDate"
+                />
               </div>
             </div>
             <div class="form-group">
               <label class="label">Fecha de finalización (opcional)</label>
               <div class="date-field">
-                <input class="input date-input" type="date" v-model="form.end_date" :min="endDateMin" />
+                <input
+                  class="input date-input"
+                  type="date"
+                  v-model="form.end_date"
+                  :min="endDateMin"
+                  @change="enforceEndDate"
+                  @blur="enforceEndDate"
+                />
               </div>
               <small v-if="form.start_date" class="date-help">Desde {{ formatDate(form.start_date) }} en adelante</small>
             </div>
@@ -220,12 +234,35 @@ export default {
   },
   watch: {
     'form.start_date'(newStart) {
+      this.enforceStartDate()
       if (this.form.end_date && newStart && this.form.end_date < newStart) {
         this.form.end_date = newStart
       }
+    },
+    'form.end_date'() {
+      this.enforceEndDate()
     }
   },
   methods: {
+    enforceStartDate() {
+      if (!this.form.start_date) return
+
+      if (this.form.start_date < this.todayDate) {
+        this.form.start_date = this.todayDate
+      }
+
+      if (this.form.end_date && this.form.end_date < this.form.start_date) {
+        this.form.end_date = this.form.start_date
+      }
+    },
+    enforceEndDate() {
+      if (!this.form.end_date) return
+
+      const minEndDate = this.form.start_date || this.todayDate
+      if (this.form.end_date < minEndDate) {
+        this.form.end_date = minEndDate
+      }
+    },
     handleCreateClick() {
       if (!this.selectedBarberId) {
         this.showSelectBarberModal = true
