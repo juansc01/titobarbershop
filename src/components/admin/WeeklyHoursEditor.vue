@@ -8,7 +8,12 @@
     >
       <div class="day-header">
         <label class="checkbox-item">
-          <input type="checkbox" v-model="localHours[idx].is_working" :disabled="isInactiveDay(idx)" />
+          <input
+            type="checkbox"
+            :checked="localHours[idx].is_working"
+            :disabled="isInactiveDay(idx)"
+            @change="setField(idx, 'is_working', $event.target.checked)"
+          />
           <span class="day-name">{{ day }}</span>
         </label>
         <span v-if="isInactiveDay(idx)" class="inactive-tag">Fuera del rango</span>
@@ -16,35 +21,64 @@
 
       <div v-if="localHours[idx].is_working" class="day-content">
         <label class="checkbox-item">
-          <input type="checkbox" v-model="localHours[idx].has_break" :disabled="isInactiveDay(idx)" />
+          <input
+            type="checkbox"
+            :checked="localHours[idx].has_break"
+            :disabled="isInactiveDay(idx)"
+            @change="setField(idx, 'has_break', $event.target.checked)"
+          />
           <span class="split-label">Turno partido</span>
         </label>
 
         <div v-if="!localHours[idx].has_break" class="day-times">
           <label class="sub-label">Horario completo</label>
-          <input type="time" step="900" class="input time-input" v-model="localHours[idx].start_time" :disabled="isInactiveDay(idx)" />
+          <input
+            type="time" step="900" class="input time-input"
+            :value="localHours[idx].start_time" :disabled="isInactiveDay(idx)"
+            @change="setField(idx, 'start_time', $event.target.value)"
+          />
           <span class="time-sep">a</span>
-          <input type="time" step="900" class="input time-input" v-model="localHours[idx].end_time" :disabled="isInactiveDay(idx)" />
+          <input
+            type="time" step="900" class="input time-input"
+            :value="localHours[idx].end_time" :disabled="isInactiveDay(idx)"
+            @change="setField(idx, 'end_time', $event.target.value)"
+          />
         </div>
 
         <div v-if="localHours[idx].has_break" class="split-shift">
           <div class="shift-block">
             <label class="sub-label">Turno 1</label>
-            <input type="time" step="900" class="input time-input" v-model="localHours[idx].start_time" :disabled="isInactiveDay(idx)" />
+            <input
+              type="time" step="900" class="input time-input"
+              :value="localHours[idx].start_time" :disabled="isInactiveDay(idx)"
+              @change="setField(idx, 'start_time', $event.target.value)"
+            />
             <span class="time-sep">a</span>
-            <input type="time" step="900" class="input time-input" v-model="localHours[idx].break_start_time" :disabled="isInactiveDay(idx)" />
+            <input
+              type="time" step="900" class="input time-input"
+              :value="localHours[idx].break_start_time" :disabled="isInactiveDay(idx)"
+              @change="setField(idx, 'break_start_time', $event.target.value)"
+            />
           </div>
           <div class="shift-block">
             <label class="sub-label">Descanso</label>
-            <input type="time" step="900" class="input time-input" v-model="localHours[idx].break_start_time" disabled style="opacity: 0.6;" />
+            <input type="time" step="900" class="input time-input" :value="localHours[idx].break_start_time" disabled style="opacity: 0.6;" />
             <span class="time-sep">a</span>
-            <input type="time" step="900" class="input time-input" v-model="localHours[idx].break_end_time" :disabled="isInactiveDay(idx)" />
+            <input
+              type="time" step="900" class="input time-input"
+              :value="localHours[idx].break_end_time" :disabled="isInactiveDay(idx)"
+              @change="setField(idx, 'break_end_time', $event.target.value)"
+            />
           </div>
           <div class="shift-block">
             <label class="sub-label">Turno 2</label>
-            <input type="time" step="900" class="input time-input" v-model="localHours[idx].break_end_time" disabled style="opacity: 0.6;" />
+            <input type="time" step="900" class="input time-input" :value="localHours[idx].break_end_time" disabled style="opacity: 0.6;" />
             <span class="time-sep">a</span>
-            <input type="time" step="900" class="input time-input" v-model="localHours[idx].end_time" :disabled="isInactiveDay(idx)" />
+            <input
+              type="time" step="900" class="input time-input"
+              :value="localHours[idx].end_time" :disabled="isInactiveDay(idx)"
+              @change="setField(idx, 'end_time', $event.target.value)"
+            />
           </div>
         </div>
       </div>
@@ -55,6 +89,25 @@
 </template>
 
 <script>
+// NOTA IMPORTANTE SOBRE LA ARQUITECTURA DE ESTE COMPONENTE
+// -----------------------------------------------------------------
+// Antes este componente sincronizaba `localHours` <-> `modelValue` con DOS
+// watchers "deep" en direcciones opuestas, cada uno clonando un array nuevo.
+// Eso provocaba un bucle de reactividad infinito en cuanto se mutaba
+// cualquier campo (por ejemplo al activar "Turno partido"):
+//   hijo muta -> watcher emite -> padre actualiza prop -> watcher del hijo
+//   vuelve a clonar y reemplazar localHours -> eso dispara el watcher de
+//   localHours otra vez -> vuelve a emitir -> ... (bucle infinito)
+//
+// En desarrollo, Vue corta ese bucle tras ~100 iteraciones y lanza un aviso
+// ("Maximum recursive updates exceeded"), por lo que en local "parecía"
+// funcionar. Esa protección se elimina del bundle en el build de producción,
+// así que en el deploy el bucle corre sin límite y congela el hilo de JS.
+//
+// Solución: eliminar los watchers automáticos bidireccionales. Ahora cada
+// cambio de campo pasa por `setField()`, que muta la copia local UNA vez y
+// emite UNA vez de forma explícita. No hay ningún watcher que reaccione a
+// `localHours` para volver a emitir, así que el bucle es imposible por diseño.
 export default {
   name: 'WeeklyHoursEditor',
   props: {
@@ -82,17 +135,10 @@ export default {
     }
   },
   watch: {
-    modelValue: {
-      deep: true,
-      handler(newValue) {
-        this.localHours = this.cloneHours(newValue)
-      }
-    },
-    localHours: {
-      deep: true,
-      handler(newValue) {
-        this.$emit('update:modelValue', this.cloneHours(newValue))
-      }
+    // Solo re-sincroniza cuando el array llega desde fuera (p. ej. al abrir
+    // el formulario de edición con otros datos). No emite nada por sí mismo.
+    modelValue(newValue) {
+      this.localHours = this.cloneHours(newValue)
     }
   },
   methods: {
@@ -100,6 +146,10 @@ export default {
       if (!this.disableInactiveDays) return false
       if (!Array.isArray(this.activeDayIndexes) || this.activeDayIndexes.length === 0) return false
       return !this.activeDayIndexes.includes(dayIdx)
+    },
+    setField(dayIdx, field, value) {
+      this.localHours[dayIdx][field] = value
+      this.$emit('update:modelValue', this.cloneHours(this.localHours))
     },
     cloneHours(hours) {
       return Array.from({ length: 7 }, (_, i) => ({
