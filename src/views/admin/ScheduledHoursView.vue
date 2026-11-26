@@ -160,6 +160,7 @@
 import { barbersService } from '../../services/barbersService'
 import { scheduleService } from '../../services/scheduleService'
 import { useToast } from '../../composables/useToast'
+import { lockBodyScroll, unlockBodyScroll } from '../../composables/useBodyScrollLock'
 import WeeklyHoursEditor from '../../components/admin/WeeklyHoursEditor.vue'
 
 export default {
@@ -189,6 +190,12 @@ export default {
       this.barbers = await barbersService.getAll()
     } catch (error) {
       useToast().error('No se pudieron cargar los peluqueros')
+    }
+  },
+  beforeUnmount() {
+    // Safety net: ensure body scroll is never left locked if the view is destroyed mid-modal
+    if (this.showModal || this.showSelectBarberModal) {
+      unlockBodyScroll()
     }
   },
   computed: {
@@ -233,6 +240,14 @@ export default {
     }
   },
   watch: {
+    showModal(isOpen) {
+      if (isOpen) lockBodyScroll()
+      else unlockBodyScroll()
+    },
+    showSelectBarberModal(isOpen) {
+      if (isOpen) lockBodyScroll()
+      else unlockBodyScroll()
+    },
     'form.start_date'(newStart) {
       this.enforceStartDate()
       if (this.form.end_date && newStart && this.form.end_date < newStart) {

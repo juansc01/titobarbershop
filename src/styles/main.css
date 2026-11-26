@@ -361,11 +361,22 @@ input[type="datetime-local"].input {
   margin: 0;
   animation: slideUp 0.3s ease;
   position: relative;
+  max-height: 85vh;
+  max-height: calc(100vh - 48px);
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+/* Lock background scroll on iOS while a modal is open */
+body.modal-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  width: 100%;
 }
 
 /* Toast / Notifications */
