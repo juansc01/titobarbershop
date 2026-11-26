@@ -22,11 +22,98 @@
       <p>Selecciona un peluquero para gestionar su planificación.</p>
     </div>
 
+    <!-- Panel inline (no modal) para crear/editar una programación -->
+    <section v-if="showForm" class="form-panel card">
+      <div class="modal-top">
+        <h3 class="modal-title">{{ editingProgramId ? 'Editar programación' : 'Nueva programación' }}</h3>
+        <p class="modal-subtitle">Define un periodo y los horarios que se aplicarán automáticamente a las reservas de esas fechas.</p>
+      </div>
+
+      <section class="modal-section">
+        <div class="section-title-row">
+          <h4 class="section-title">Periodo</h4>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="label">Fecha de inicio</label>
+            <div class="date-field">
+              <input
+                class="input date-input"
+                type="date"
+                v-model="form.start_date"
+                :min="todayDate"
+                @change="enforceStartDate"
+                @blur="enforceStartDate"
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="label">Fecha de finalización (opcional)</label>
+            <div class="date-field">
+              <input
+                class="input date-input"
+                type="date"
+                v-model="form.end_date"
+                :min="endDateMin"
+                @change="enforceEndDate"
+                @blur="enforceEndDate"
+              />
+            </div>
+            <small v-if="form.start_date" class="date-help">Desde {{ formatDate(form.start_date) }} en adelante</small>
+          </div>
+        </div>
+
+        <div class="form-group notes-field">
+          <label class="label">Notas (opcional)</label>
+          <input class="input" v-model="form.notes" placeholder="Ej.: horario especial de enero" />
+        </div>
+      </section>
+
+      <section class="modal-section">
+        <div class="section-title-row">
+          <h4 class="section-title">Configuración semanal</h4>
+          <span class="section-help">Incluye turnos partidos y días cerrados</span>
+        </div>
+        <p v-if="disableInactiveDays" class="range-impact-note">
+          En este rango solo se aplican: <strong>{{ affectedDaysLabel }}</strong>.
+          Los demás días quedan bloqueados porque no se usan en estas fechas.
+        </p>
+        <WeeklyHoursEditor
+          v-model="form.hours"
+          :days="days"
+          :active-day-indexes="affectedDayIndexes"
+          :disable-inactive-days="disableInactiveDays"
+        />
+      </section>
+
+      <div v-if="conflictWarnings.length > 0" class="warning-box">
+        <strong>Advertencia: hay citas confirmadas/completadas fuera del nuevo horario.</strong>
+        <p>No se modificarán automáticamente. Revisa estas citas antes de guardar:</p>
+        <ul class="warning-list">
+          <li v-for="item in conflictWarnings.slice(0, 8)" :key="item.id">
+            {{ formatDateTime(item.start_time) }} - {{ item.customers?.name || 'Cliente' }}
+          </li>
+        </ul>
+        <p v-if="conflictWarnings.length > 8">...y {{ conflictWarnings.length - 8 }} más.</p>
+        <button class="btn btn-secondary btn-sm warning-cta" @click="viewAffectedAppointments">
+          Ver {{ conflictWarnings.length }} cita(s) afectada(s) en calendario
+        </button>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" @click="closeModal">Cancelar</button>
+        <button class="btn btn-primary" @click="saveProgram">
+          {{ editingProgramId ? 'Guardar cambios' : 'Crear programación' }}
+        </button>
+      </div>
+    </section>
+
     <div v-else-if="loading" class="skeleton-list">
       <div class="skeleton" style="height: 72px" v-for="i in 4" :key="i"></div>
     </div>
 
-    <div v-else>
+    <div v-else-if="selectedBarberId">
       <div v-if="programs.length === 0" class="empty-card card">
         <p>No hay horarios programados para este peluquero.</p>
       </div>
@@ -53,94 +140,6 @@
             </button>
           </div>
         </article>
-      </div>
-    </div>
-
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content modal-large">
-        <div class="modal-top">
-          <h3 class="modal-title">{{ editingProgramId ? 'Editar programación' : 'Nueva programación' }}</h3>
-          <p class="modal-subtitle">Define un periodo y los horarios que se aplicarán automáticamente a las reservas de esas fechas.</p>
-        </div>
-
-        <section class="modal-section">
-          <div class="section-title-row">
-            <h4 class="section-title">Periodo</h4>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="label">Fecha de inicio</label>
-              <div class="date-field">
-                <input
-                  class="input date-input"
-                  type="date"
-                  v-model="form.start_date"
-                  :min="todayDate"
-                  @change="enforceStartDate"
-                  @blur="enforceStartDate"
-                />
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="label">Fecha de finalización (opcional)</label>
-              <div class="date-field">
-                <input
-                  class="input date-input"
-                  type="date"
-                  v-model="form.end_date"
-                  :min="endDateMin"
-                  @change="enforceEndDate"
-                  @blur="enforceEndDate"
-                />
-              </div>
-              <small v-if="form.start_date" class="date-help">Desde {{ formatDate(form.start_date) }} en adelante</small>
-            </div>
-          </div>
-
-          <div class="form-group notes-field">
-            <label class="label">Notas (opcional)</label>
-            <input class="input" v-model="form.notes" placeholder="Ej.: horario especial de enero" />
-          </div>
-        </section>
-
-        <section class="modal-section">
-          <div class="section-title-row">
-            <h4 class="section-title">Configuración semanal</h4>
-            <span class="section-help">Incluye turnos partidos y días cerrados</span>
-          </div>
-          <p v-if="disableInactiveDays" class="range-impact-note">
-            En este rango solo se aplican: <strong>{{ affectedDaysLabel }}</strong>.
-            Los demás días quedan bloqueados porque no se usan en estas fechas.
-          </p>
-          <WeeklyHoursEditor
-            v-model="form.hours"
-            :days="days"
-            :active-day-indexes="affectedDayIndexes"
-            :disable-inactive-days="disableInactiveDays"
-          />
-        </section>
-
-        <div v-if="conflictWarnings.length > 0" class="warning-box">
-          <strong>Advertencia: hay citas confirmadas/completadas fuera del nuevo horario.</strong>
-          <p>No se modificarán automáticamente. Revisa estas citas antes de guardar:</p>
-          <ul class="warning-list">
-            <li v-for="item in conflictWarnings.slice(0, 8)" :key="item.id">
-              {{ formatDateTime(item.start_time) }} - {{ item.customers?.name || 'Cliente' }}
-            </li>
-          </ul>
-          <p v-if="conflictWarnings.length > 8">...y {{ conflictWarnings.length - 8 }} más.</p>
-          <button class="btn btn-secondary btn-sm warning-cta" @click="viewAffectedAppointments">
-            Ver {{ conflictWarnings.length }} cita(s) afectada(s) en calendario
-          </button>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="closeModal">Cancelar</button>
-          <button class="btn btn-primary" @click="saveProgram">
-            {{ editingProgramId ? 'Guardar cambios' : 'Crear programación' }}
-          </button>
-        </div>
       </div>
     </div>
 
@@ -172,7 +171,7 @@ export default {
       selectedBarberId: '',
       loading: false,
       programs: [],
-      showModal: false,
+      showForm: false,
       showSelectBarberModal: false,
       editingProgramId: null,
       conflictWarnings: [],
@@ -194,7 +193,7 @@ export default {
   },
   beforeUnmount() {
     // Safety net: ensure body scroll is never left locked if the view is destroyed mid-modal
-    if (this.showModal || this.showSelectBarberModal) {
+    if (this.showSelectBarberModal) {
       unlockBodyScroll()
     }
   },
@@ -240,10 +239,6 @@ export default {
     }
   },
   watch: {
-    showModal(isOpen) {
-      if (isOpen) lockBodyScroll()
-      else unlockBodyScroll()
-    },
     showSelectBarberModal(isOpen) {
       if (isOpen) lockBodyScroll()
       else unlockBodyScroll()
@@ -309,7 +304,8 @@ export default {
         notes: '',
         hours: scheduleService.createDefaultHours()
       }
-      this.showModal = true
+      this.showForm = true
+      this.scrollToForm()
     },
 
     openEditModal(program) {
@@ -321,11 +317,19 @@ export default {
         notes: program.notes || '',
         hours: scheduleService.normalizeHours(program.schedule_program_hours || [])
       }
-      this.showModal = true
+      this.showForm = true
+      this.scrollToForm()
+    },
+
+    scrollToForm() {
+      this.$nextTick(() => {
+        const el = document.querySelector('.form-panel')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
     },
 
     closeModal() {
-      this.showModal = false
+      this.showForm = false
       this.editingProgramId = null
       this.conflictWarnings = []
     },
@@ -583,10 +587,12 @@ export default {
 .date-field :deep(input[type="date"]::-webkit-calendar-picker-indicator:hover) {
   opacity: 1;
 }
-.modal-large {
+.form-panel {
   max-width: 920px;
   border-color: var(--border-light);
   box-shadow: var(--shadow-lg);
+  margin-bottom: 20px;
+  animation: slideUp 0.3s ease;
 }
 
 .modal-top {
